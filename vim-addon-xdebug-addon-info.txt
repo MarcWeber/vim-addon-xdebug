@@ -1,0 +1,13 @@
+{
+  "name" : "vim-addon-xdebug",
+  "version" : "0.1",
+  "author" : "Marc Weber <marco-oweber@gmx.de>",
+  "maintainer" : "Marc Weber <marco-oweber@gmx.de>",
+  "repository" : {"type": "git", "url": "git://github.com/MarcWeber/vim-addon-xdebug.git"},
+  "dependencies" : {
+    "vim-addon-async": {},
+    "webapi-vim": {},
+    "vim-addon-signs": {},
+  },
+  "description" : "quick & dirty xdebug implementation - so that you can debug PHP in Vim"
+}

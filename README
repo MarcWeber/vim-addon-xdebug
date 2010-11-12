@@ -1,0 +1,43 @@
+No, this is no complete xdebug implementation and it will never be one.
+
+This tries to be a quick and dirty hack to get some of my jobs done without
+always firing up Eclipse
+
+dependencies:
+  - see vim-addon-xdebug-addon-info.txt
+  - socat
+
+http://url?XDEBUG_SESSION_START=ECLIPSE_DBGP&KEY=12894211795611
+
+HOWTO:
+============
+1) make sure vim-addon-async works (compile the c helper application)
+
+2) :XDbgStart
+
+3) open web page such as
+  http://url?XDEBUG_SESSION_START=ECLIPSE_DBGP&KEY=12894211795611
+
+4) call g:xdebug.ctx.send('step_into')
+
+  (Vim crashes soon :-( )
+  It seems to crash less often when switching syn off! ??
+
+  See plugin/xdebug.vim to see that Eclipse standard mappings have are used by
+  default.
+
+  XDbgStack works (current stack is feed to quickfix)
+
+TODO:
+====
+- Help me make this all more mature / complete
+  * inspect vars (stack level!)
+  * exec code
+  * break points
+  base64 encoding has been implemented in webapi-vim
+- implement things like "goto cursor" (there is a temporary breakpoint command)
+- ...
+
+This is the protocol documentation I found:
+- http://xdebug.org/docs-dbgp.php
+- The messages sent by PDT (Eclipse) can be debugged easily.
