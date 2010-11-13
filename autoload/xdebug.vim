@@ -46,10 +46,11 @@ fun! xdebug#Start(...)
   endf
 
   " send command using automatic unique id
-  fun ctx.send(cmd)
+  fun ctx.send(cmd, ...)
+    let append = a:0 > 0 ? ' -- '.base64#b64encode(a:1) : ""
     let s:c.cmd_nr +=1
     let l = matchlist(a:cmd, '^\(\S\+\)\(.*\)')
-    let cmd = l[1].' -i '. s:c.cmd_nr.(l[2] == '' ? '' : ' ').l[2]
+    let cmd = l[1].' -i '. s:c.cmd_nr.l[2].append
     call self.log('>'.cmd)
     call self.write([cmd,''])
     return s:c.cmd_nr
@@ -150,6 +151,39 @@ endf
 fun! xdebug#StackGet(...)
   let depth = a:0 > 0 ? ' -d'.a:1 : ''
   let s:c.request_handlers[g:xdebug.ctx.send('stack_get'.depth)] = [function('xdebug#HandleStackReply'),[]]
+endf
+
+fun! xdebug#FormatResult(xmlO)
+  let type = a:xmlO.attr.type
+  let n = get(a:xmlO.attr,'name','')
+  if type == "array"
+    let lines = []
+    for lx in map(a:xmlO.child, 'xdebug#FormatResult(v:val)')
+      let lines = lines + lx
+    endfor
+  else
+    let cdata = matchstr(a:xmlO.child[0],'[\r\n ]*\zs[^\r\n ]*\ze')
+    if type == "int"
+      let lines = [cdata]
+    elseif type == "string"
+      let lines = [string(base64#b64decode(cdata))]
+    endif
+  endif
+  if n == ''
+    return lines
+  else
+    " return [n] + map(map(lines), string(repeat(' ',2)).'.v:val')
+    return [n.': '. lines[0]] + map(lines[1:], string(repeat(' ',len(n)+2)).'.v:val')
+  endif
+endf
+
+fun! xdebug#ShowEvalResult(xmlO, ...)
+  let lines = xdebug#FormatResult(a:xmlO.find('property'))
+  call s:c.ctx.log(lines)
+endf
+
+fun! xdebug#Eval(expr)
+  let s:c.request_handlers[g:xdebug.ctx.send('eval', a:expr)] = [function('xdebug#ShowEvalResult'),[]]
 endf
 
 " stack_get  (stdout which will be flushed in CDATA base64 encoded)

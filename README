@@ -28,6 +28,9 @@ HOWTO:
 
   XDbgStack works (current stack is feed to quickfix)
 
+  Eg this prints the contents of $_GET
+  call xdebug#Eval('$_GET')
+
 TODO:
 ====
 - Help me make this all more mature / complete
@@ -41,3 +44,8 @@ TODO:
 This is the protocol documentation I found:
 - http://xdebug.org/docs-dbgp.php
 - The messages sent by PDT (Eclipse) can be debugged easily.
+
+Thanks TO
+===========
+mattn (github) who wrote the nice XML parsing library which also contains the
+bas64 enc/decoding
