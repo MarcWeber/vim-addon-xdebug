@@ -3,6 +3,8 @@ if !exists('g:xdebug') | let g:xdebug = {} | endif | let s:c = g:xdebug
 
 let s:c.cmd_nr = get(s:c,'cmd_nr',0)
 let s:c.request_handlers = get(s:c, 'request_handlers', {})
+let s:c.max_depth = get(s:c, 'max_depth', 5)
+let s:c.max_children = get(s:c, 'max_depth', 5)
 
 fun! xdebug#Start(...)
   echom "switching syn off because Vim crashes when keeping it on ??"
@@ -120,8 +122,17 @@ fun! xdebug#HandleXdebugReply(xml) abort
   elseif xmlO.name == 'init'
     " step to first line so that user sees that something happened
     sp | call s:c.ctx.send('step_into')
+
+    " call s:c.ctx.send('show_hidden -v 1')
+    call s:c.ctx.send('feature_set -n max_depth -v '. s:c.max_depth)
+    call s:c.ctx.send('feature_set -n max_children -v '. s:c.max_children)
+
   elseif xmlO.find('xdebug:message') != {}
     call s:SetCurrentLine(xmlO.find('xdebug:message'))
+  elseif xmlO.attr.status == 'stopping'
+    call xdebug#SetCurr()
+    " finish debugging:
+    call s:c.ctx.send('run')
   endif
 endf
 
@@ -139,14 +150,18 @@ fun! xdebug#SetCurr(...)
     call vim_addon_signs#Push("xdebug_current_line", [] )
   else
     call buf_utils#GotoBuf(a:1, {'create':1})
-    exec a:message.attr.lineno
+    exec a:2
     call vim_addon_signs#Push("xdebug_current_line", [[bufnr(a:1), a:2, "xdebug_current_line"]] )
+    "normal zz
   endif
   call xdebug#UpdateVarView()
 endf
 
 fun! s:FileNameFromUri(uri)
   return substitute(a:uri,'^file:\/\/','', '')
+endf
+fun! xdebug#UriOfFilename(f)
+  return 'file://'.fnamemodify(a:f,':p')
 endf
 
 fun! xdebug#HandleStackReply(xmlO, ...)
@@ -168,11 +183,13 @@ fun! xdebug#FormatResult(xmlO)
   let n = get(a:xmlO.attr,'name','')
   if type == "array"
     let lines = []
+    let childs_found = len(a:xmlO.child)
     for lx in map(copy(a:xmlO.child), 'xdebug#FormatResult(v:val)')
       let lines = lines + lx
     endfor
-    if a:xmlO.attr.numchildren != len(lines)
-      call add(lines, a:xmlO.attr.numchildren - len(lines). ' childs omitted, increase max_depth ')
+    let num_should = a:xmlO.attr.numchildren * 1
+    if num_should * 1 != childs_found
+      call add(lines, num_should - childs_found. ' childs omitted, increase max_depth ')
     endif
   elseif type == "null"
     let lines = [ "null" ]
@@ -230,6 +247,34 @@ fun! xdebug#VarView()
   endif
 endf
 
+fun! xdebug#BreakPointsBuffer()
+  let buf_name = "XDEBUG_BREAK_POINTS_VIEW"
+  let cmd = buf_utils#GotoBuf(buf_name, {'create':1} )
+  if cmd == 'e' && !exists('b:did_init')
+    let b:did_init = 1
+    " new buffer, set commands etc
+    let s:c.var_view_buf_nr = bufnr('%')
+    au BufWinEnter <buffer> call xdebug#VarView()
+    command -buffer UpdateWatchView call xdebug#UpdateVarView()
+    vnoremap <buffer> <cr> y:let g:xdebug.request_handlers[g:xdebug.ctx.send('eval', getreg('"'))] = [function('xdebug#AppendToVarView'),[]]<cr>
+    call append(0,['watch $_GET', s:auto_break_end
+          \ , 'XDebug supports different types of breakpoints. The following types are supported
+          \ , '#line:file:line: [if condition]'
+          \ , '#call:function [if condition]'
+          \ , '#return:function [if condition]'
+          \ , '#exception:exception_name [if condition]'
+          \ , '#conditional:filename: condition'
+          \ , '#watch: expr'
+          \ ])
+    set buftype=nofile
+  endif
+
+  let buf_nr = bufnr(buf_name)
+  if buf_nr == -1
+    exec 'sp '.fnameescape(buf_name)
+  endif
+endf
+
 fun! xdebug#AppendToVarView(xmlO)
   let lines = xdebug#FormatResult(a:xmlO.find('property'))
   " make buffer visible
@@ -242,7 +287,7 @@ fun! xdebug#UpdateVarView()
   let win_nr = bufwinnr(get(s:c, 'var_view_buf_nr', -1))
   " only update view if buffer is visible (for speed reasons
   if win_nr == -1 | return | endif
-  let old_win_nr = winnr('%')
+  let old_win_nr = winnr()
   exec win_nr.' wincmd w'
 
   for l in getline('0',line('$'))
@@ -258,18 +303,19 @@ fun! xdebug#UpdateVarView()
 
   normal gg
   let end = search(s:auto_watch_end,'')
-  exec 1.','.end.':g/'.'^| '.'/d'
+  exec 1.','.end.':g/'.'^|  '.'/d'
+  exec old_win_nr.' wincmd w'
 endf
 fun! xdebug#HandleWatchExprResult(watch_expr, xmlO, ...)
   let lines = xdebug#FormatResult(a:xmlO.find('property'))
 
   let win_nr = bufwinnr(get(s:c, 'var_view_buf_nr', -1))
-  let old_win_nr = winnr('%')
+  let old_win_nr = winnr()
   exec win_nr.' wincmd w'
 
   normal gg
   let line = search('^watch\s\+'.escape(a:watch_expr, '$%\'),'w', s:auto_watch_end)
-  call append(line, map(lines, string('| ').'.v:val'))
+  call append(line, map(lines, string('|  ').'.v:val'))
   exec old_win_nr.' wincmd w'
 endf
 

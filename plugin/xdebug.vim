@@ -5,7 +5,15 @@ command! -bar -nargs=0 XDbgStop  call g:xdebug.ctx.send('stop')
 command! -bar -nargs=0 XDbgStackToQF call xdebug#StackToQF()
 command! -bar -nargs=0 XDbgPrintKey :echo '?XDEBUG_SESSION_START=ECLIPSE_DBGP&KEY=12894211795611'
 command! -bar -nargs=0 XDbgVarView call xdebug#VarView()
+command! -bar -nargs=0 XDbgBreakPoints call xdebug#BreakPointsBuffer()
 
+command! -bar -nargs=0 XDbgRun call xdebug.ctx.send('run')
+
+command! -bar -nargs=1 XDbgSetMaxDepth    call g:xdebug.ctx.send('feature_set -n max_depth -v '. <f-args>)
+command! -bar -nargs=1 XDbgSetMaxData    call g:xdebug.ctx.send('feature_set -n max_data -v '. <f-args>)
+command! -bar -nargs=1 XDbgSetMaxChildren call g:xdebug.ctx.send('feature_set -n max_children -v '. <f-args>)
+
+command! -bar -nargs=0 XDbgRunTillCursor call g:xdebug.ctx.send('breakpoint_set -f '. xdebug#UriOfFilename(expand('%')).' -t line -n '.getpos('.')[1].' -r 1') | XDbgRun 
 
 sign define xdebug_current_line text=> linehl=Type
 
@@ -14,6 +22,6 @@ if !exists('*XDebugMappings')
      noremap <F5> :call g:xdebug.ctx.send('step_into')<cr>
      noremap <F6> :call g:xdebug.ctx.send('step_over')<cr>
      noremap <F7> :call g:xdebug.ctx.send('step_out')<cr>
-     noremap <F8> :call g:xdebug.ctx.send('run')<cr>
+     noremap <F8> :XDbgRun<cr>
   endf
 endif
