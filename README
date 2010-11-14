@@ -31,6 +31,20 @@ HOWTO:
   Eg this prints the contents of $_GET
   call xdebug#Eval('$_GET')
 
+5) watching vars:
+  manually: call xdebug#Eval('$_GET')
+
+  more convenient:
+  XDbgVarView opens a buffer. Add lines like this:
+
+    watch $_GET
+    watch $_POST['foo']
+
+  use :UpdateWatchView to update the buffer.
+  This will be done automatically on stepping.
+
+  You can visually select lines and press <cr> to execute arbitrary PHP code
+
 TODO:
 ====
 - Help me make this all more mature / complete

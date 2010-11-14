@@ -8,6 +8,7 @@
     "vim-addon-async": {},
     "webapi-vim": {},
     "vim-addon-signs": {},
+    "vim-addon-mw-utils": {},
   },
   "description" : "quick & dirty xdebug implementation - so that you can debug PHP in Vim"
 }

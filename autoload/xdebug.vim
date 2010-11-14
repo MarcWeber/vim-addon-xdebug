@@ -36,7 +36,9 @@ fun! xdebug#Start(...)
   endf
 
   fun ctx.terminated()
-    call self.log(["socat died with code : ". self.status." restarting"])
+    if s:c.debugging
+      call self.log(["socat died with code : ". self.status." restarting"])
+    endif
     " reuse same bufnr
     call xdebug#Start({'log_bufnr' : self.log_bufnr})
   endf
@@ -59,6 +61,24 @@ fun! xdebug#Start(...)
   call async#Exec(ctx)
 
 endf
+
+fun! xdebug#Receive(data, ...) dict
+  let self.pending[-1] = self.pending[-1].a:data[0]
+  let self.pending += a:data[1:]
+
+  while len(self.pending) > 2
+    " pending[0] is length encoding
+    " parse XML result
+    try
+      call xdebug#HandleXdebugReply(self.pending[1])
+    catch /.*/
+      call self.log(v:exception)
+    endtry
+
+    let self.pending = self.pending[2:]
+  endwhile
+endf
+
 
 function! s:dump(node, indent, reslist)
   if type(a:node) == 1
@@ -84,55 +104,45 @@ function! s:dump(node, indent, reslist)
   endif
 endfunction
 
-fun! xdebug#Receive(...) dict
-  call call(function('xdebug#Receive2'),a:000, self)
-endf
+fun! xdebug#HandleXdebugReply(xml) abort
+  let xmlO = xml#parse(a:xml)
+  let debugView = []
+  call s:dump(xmlO, 0, debugView)
+  " let debugView = split(xmlO.toString(),"\n")
+  call s:c.ctx.log(['call xdebug#HandleXdebugReply('''.substitute(a:xml,"'","''",'g').''')'] + debugView)
 
-fun! xdebug#Receive2(data, ...) dict
-  try
-    let self.pending[-1] = self.pending[-1].a:data[0]
-    let self.pending += a:data[1:]
-
-    while len(self.pending) > 2
-      " pending[0] is length encoding
-      " parse XML result
-      let xml = self.pending[1]
-      let xmlO = xml#parse(xml)
-      let debugView = []
-      call s:dump(xmlO, 0, debugView)
-      " let debugView = split(xmlO.toString(),"\n")
-      call self.log(['<'.xml] + debugView)
-      let self.pending = self.pending[2:]
-
-      let transaction_id = get(xmlO.attr,'transaction_id',"-1").''
-      if has_key(s:c.request_handlers, transaction_id)
-        let args = s:c.request_handlers[transaction_id]
-        call add(args[1], xmlO)
-        call call(function('call'), args)
-        unlet s:c.request_handlers[transaction_id]
-      elseif xmlO.name == 'init'
-        " step to first line so that user sees that something happened
-        sp | call self.send('step_into')
-      elseif xmlO.find('xdebug:message') != {}
-        call s:SetCurrentLine(xmlO.find('xdebug:message'))
-      endif
-    endwhile
-  catch /.*/
-    call self.log(v:excption)
-  endtry
+  let transaction_id = get(xmlO.attr,'transaction_id',"-1").''
+  if has_key(s:c.request_handlers, transaction_id)
+    let args = s:c.request_handlers[transaction_id]
+    call add(args[1], xmlO)
+    call call(function('call'), args)
+    " unlet s:c.request_handlers[transaction_id]
+  elseif xmlO.name == 'init'
+    " step to first line so that user sees that something happened
+    sp | call s:c.ctx.send('step_into')
+  elseif xmlO.find('xdebug:message') != {}
+    call s:SetCurrentLine(xmlO.find('xdebug:message'))
+  endif
 endf
 
 fun! s:SetCurrentLine(message)
   if has_key(a:message,'attr') && has_key(a:message.attr,'filename') && has_key(a:message.attr,'lineno')
-    let file = s:FileNameFromUri(a:message.attr.filename)
-    if bufnr(file) == -1
-      exec 'e '.fnameescape(file)
-    else
-      exec 'b '.bufnr(file)
-    endif
-    exec a:message.attr.lineno
-    call vim_addon_signs#Push("xdebug_current_line", [[bufnr('%'), a:message.attr.lineno, "xdebug_current_line"]] )
+    call xdebug#SetCurr(s:FileNameFromUri(a:message.attr.filename), a:message.attr.lineno)
   endif
+endf
+
+" SetCurr() (no debugging active
+" SetCurr(file, line)
+" mark that line as line which will be executed next
+fun! xdebug#SetCurr(...)
+  if a:0 == 0
+    call vim_addon_signs#Push("xdebug_current_line", [] )
+  else
+    call buf_utils#GotoBuf(a:1, {'create':1})
+    exec a:message.attr.lineno
+    call vim_addon_signs#Push("xdebug_current_line", [[bufnr(a:1), a:2, "xdebug_current_line"]] )
+  endif
+  call xdebug#UpdateVarView()
 endf
 
 fun! s:FileNameFromUri(uri)
@@ -148,7 +158,7 @@ fun! xdebug#HandleStackReply(xmlO, ...)
   call setqflist(l)
 endf
 
-fun! xdebug#StackGet(...)
+fun! xdebug#StackToQF(...)
   let depth = a:0 > 0 ? ' -d'.a:1 : ''
   let s:c.request_handlers[g:xdebug.ctx.send('stack_get'.depth)] = [function('xdebug#HandleStackReply'),[]]
 endf
@@ -158,22 +168,29 @@ fun! xdebug#FormatResult(xmlO)
   let n = get(a:xmlO.attr,'name','')
   if type == "array"
     let lines = []
-    for lx in map(a:xmlO.child, 'xdebug#FormatResult(v:val)')
+    for lx in map(copy(a:xmlO.child), 'xdebug#FormatResult(v:val)')
       let lines = lines + lx
     endfor
+    if a:xmlO.attr.numchildren != len(lines)
+      call add(lines, a:xmlO.attr.numchildren - len(lines). ' childs omitted, increase max_depth ')
+    endif
+  elseif type == "null"
+    let lines = [ "null" ]
   else
     let cdata = matchstr(a:xmlO.child[0],'[\r\n ]*\zs[^\r\n ]*\ze')
     if type == "int"
       let lines = [cdata]
     elseif type == "string"
       let lines = [string(base64#b64decode(cdata))]
+    else
+      let lines = ['TODO: FormatResult '. a:xmlO.toString()]
     endif
   endif
   if n == ''
     return lines
   else
     " return [n] + map(map(lines), string(repeat(' ',2)).'.v:val')
-    return [n.': '. lines[0]] + map(lines[1:], string(repeat(' ',len(n)+2)).'.v:val')
+    return [n.': '. lines[0]] + map(copy(lines[1:]), string(repeat(' ',len(n)+2)).'.v:val')
   endif
 endf
 
@@ -184,6 +201,76 @@ endf
 
 fun! xdebug#Eval(expr)
   let s:c.request_handlers[g:xdebug.ctx.send('eval', a:expr)] = [function('xdebug#ShowEvalResult'),[]]
+endf
+
+let s:auto_watch_end = '== auto watch end =='
+
+" creates / shows the var view buffer.
+" Add "watch: $_GET" lines if you want to watch the contents of $_GET
+fun! xdebug#VarView()
+  let buf_name = "XDEBUG_VAR_VIEW"
+  let cmd = buf_utils#GotoBuf(buf_name, {'create':1} )
+  if cmd == 'e' && !exists('b:did_init')
+    let b:did_init = 1
+    " new buffer, set commands etc
+    let s:c.var_view_buf_nr = bufnr('%')
+    au BufWinEnter <buffer> call xdebug#VarView()
+    command -buffer UpdateWatchView call xdebug#UpdateVarView()
+    vnoremap <buffer> <cr> y:let g:xdebug.request_handlers[g:xdebug.ctx.send('eval', getreg('"'))] = [function('xdebug#AppendToVarView'),[]]<cr>
+    call append(0,['watch $_GET', s:auto_watch_end
+          \ , 'The watch results will be pasted below the watch: lines'
+          \ , 'This text here will not be touched. You can eval PHP by typing, visually selecting and pressing <cr>'
+          \ ])
+    set buftype=nofile
+  endif
+
+  let buf_nr = bufnr(buf_name)
+  if buf_nr == -1
+    exec 'sp '.fnameescape(buf_name)
+  endif
+endf
+
+fun! xdebug#AppendToVarView(xmlO)
+  let lines = xdebug#FormatResult(a:xmlO.find('property'))
+  " make buffer visible
+  call xdebug#VarView()
+  call append('$',lines)
+endf
+
+" see xdebug#VarView()
+fun! xdebug#UpdateVarView()
+  let win_nr = bufwinnr(get(s:c, 'var_view_buf_nr', -1))
+  " only update view if buffer is visible (for speed reasons
+  if win_nr == -1 | return | endif
+  let old_win_nr = winnr('%')
+  exec win_nr.' wincmd w'
+
+  for l in getline('0',line('$'))
+    if l =~ s:auto_watch_end | break | endif
+    let watch_expr = matchstr(l, '^watch\s\+\zs.*\ze')
+    if watch_expr != ''
+      " should be using get_var or such which accepts stack level (not supported yet)
+      " let watch_expr = " try { $result_XYZ = ".watch_expr."; } catch (Exception $e) { $result_XYZ = $e->getMessage(); } $result_XYZ"
+      let s:c.request_handlers[g:xdebug.ctx.send('eval', watch_expr)] = [function('xdebug#HandleWatchExprResult'),[watch_expr]]
+    endif
+  endfor
+  let curr_buf = bufnr('%')
+
+  normal gg
+  let end = search(s:auto_watch_end,'')
+  exec 1.','.end.':g/'.'^| '.'/d'
+endf
+fun! xdebug#HandleWatchExprResult(watch_expr, xmlO, ...)
+  let lines = xdebug#FormatResult(a:xmlO.find('property'))
+
+  let win_nr = bufwinnr(get(s:c, 'var_view_buf_nr', -1))
+  let old_win_nr = winnr('%')
+  exec win_nr.' wincmd w'
+
+  normal gg
+  let line = search('^watch\s\+'.escape(a:watch_expr, '$%\'),'w', s:auto_watch_end)
+  call append(line, map(lines, string('| ').'.v:val'))
+  exec old_win_nr.' wincmd w'
 endf
 
 " stack_get  (stdout which will be flushed in CDATA base64 encoded)
