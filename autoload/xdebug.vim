@@ -281,7 +281,7 @@ fun! xdebug#UpdateBreakPoints()
   let r_line        = '^line:\([^:]\+\):\(\d\+\)\%(\s\+if\s\?\(.*\)\)\?'
   let r_call        =   '^call:\(\S\+\)\%(\s\+if\s\?\(.*\)\)\?'
   let r_return      = '^return:\(\S\+\)\%(\s\+if\s\?\(.*\)\)\?'
-  let r_exception   = '^exception:\(\S\+\)\%(\s\?if\s\+\(.*\)\)\?'
+  let r_exception   = '^exception:\s*\(\S\+\)\%(\s\?if\s\+\(.*\)\)\?'
   let r_conditional = '^conditional:\([^:]*\):\s\+\%(if\s\?\(.*\)\)\?'
   let r_watch       = '^watch:\s*\(.*\)'
 
@@ -316,7 +316,7 @@ fun! xdebug#UpdateBreakPoints()
     let m = matchlist(l, r_exception)
     if !empty(m)
       let point = {'type': 'exception','exception': m[1]}
-      let args = ['-t '. point.type. ' -x '.point.exception
+      let args = ['-t '. point.type. ' -x '.point.exception ]
       let condition = m[2]
     endif
 

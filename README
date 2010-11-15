@@ -45,6 +45,12 @@ HOWTO:
 
   You can visually select lines and press <cr> to execute arbitrary PHP code
 
+6) breakpoints
+  XDbgBreakPoints opens a window. You add breakpoints by adding lines (the way shown below the marker)
+  then pressing enter. Some more porcelaine is missing!
+
+  :-) Most of the breakpoint types are not supported by xdebug?
+
 TODO:
 ====
 - Help me make this all more mature / complete
@@ -58,6 +64,11 @@ TODO:
 This is the protocol documentation I found:
 - http://xdebug.org/docs-dbgp.php
 - The messages sent by PDT (Eclipse) can be debugged easily.
+
+Note
+====
+This plugin has enough features for everyday work now.
+If you want more let me know.
 
 Thanks TO
 ===========
