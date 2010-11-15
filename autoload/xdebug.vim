@@ -254,7 +254,7 @@ fun! xdebug#BreakPointsBuffer()
     " new buffer, set commands etc
     let s:c.var_break_buf_nr = bufnr('%')
     noremap <buffer> <cr> :call xdebug#UpdateBreakPoints()<cr>
-    call append(0,['# put the breakpoints here:', s:auto_break_end
+    call append(0,['# put the breakpoints here, prefix with # to deactivate:', s:auto_break_end
           \ , 'XDebug supports different types of breakpoints. The following types are supported:'
           \ , 'line:file:line: [if condition]'
           \ , 'call:function [if condition]'
@@ -417,6 +417,50 @@ fun! xdebug#HandleWatchExprResult(watch_expr, xmlO, ...)
   let line = search('^watch\s\+'.escape(a:watch_expr, '$%\'),'w', s:auto_watch_end)
   call append(line, map(lines, string('|  ').'.v:val'))
   exec old_win_nr.' wincmd w'
+endf
+
+fun! xdebug#ToggleLineBreakpoint()
+  " yes, this implementation somehow sucks ..
+  let file = expand('%')
+  let line = getpos('.')[1]
+
+  let old_win_nr = winnr()
+  let old_buf_nr = bufnr('%')
+
+  if !has_key(s:c,'var_break_buf_nr')
+    call xdebug#BreakPointsBuffer()
+    let restore = "bufnr"
+  else
+    let win_nr = bufwinnr(get(s:c, 'var_break_buf_nr', -1))
+
+    if win_nr == -1
+      let restore = 'bufnr'
+      exec 'b '.s:c.var_break_buf_nr
+    else
+      let restore = 'active_window'
+      exec win_nr.' wincmd w'
+    endif
+
+  endif
+
+  " BreakPoint buffer should be active now.
+  let pattern = 'line:'.escape(file,'\').':'.line
+  let line = 'line:'.file.':'.line
+  normal gg
+  let found = search(pattern,'', s:auto_break_end)
+  if found > 0
+    " remove breakpoint
+    exec found.'g/./d'
+  else
+    " add breakpoint
+    call append(0, line)
+  endif
+  call xdebug#UpdateBreakPoints()
+  if restore == 'bufnr'
+    exec 'b '.old_buf_nr
+  else
+    exec old_win_nr.' wincmd w'
+  endif
 endf
 
 " stack_get  (stdout which will be flushed in CDATA base64 encoded)

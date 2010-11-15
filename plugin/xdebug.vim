@@ -12,6 +12,7 @@ command! -bar -nargs=0 XDbgRun call xdebug.ctx.send('run')
 command! -bar -nargs=1 XDbgSetMaxDepth    call g:xdebug.ctx.send('feature_set -n max_depth -v '. <f-args>)
 command! -bar -nargs=1 XDbgSetMaxData    call g:xdebug.ctx.send('feature_set -n max_data -v '. <f-args>)
 command! -bar -nargs=1 XDbgSetMaxChildren call g:xdebug.ctx.send('feature_set -n max_children -v '. <f-args>)
+command! -bar -nargs=0 XDbgToggleLineBreakpoint call xdebug#ToggleLineBreakpoint()
 
 command! -bar -nargs=0 XDbgRunTillCursor call g:xdebug.ctx.send('breakpoint_set -f '. xdebug#UriOfFilename(expand('%')).' -t line -n '.getpos('.')[1].' -r 1') | XDbgRun 
 
@@ -24,5 +25,6 @@ if !exists('*XDebugMappings')
      noremap <F6> :call g:xdebug.ctx.send('step_over')<cr>
      noremap <F7> :call g:xdebug.ctx.send('step_out')<cr>
      noremap <F8> :XDbgRun<cr>
+     noremap <F9> :XDbgToggleLineBreakpoint<cr>
   endf
 endif

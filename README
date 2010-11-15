@@ -49,6 +49,8 @@ HOWTO:
   XDbgBreakPoints opens a window. You add breakpoints by adding lines (the way shown below the marker)
   then pressing enter. Some more porcelaine is missing!
 
+  As alterntavie press F9 or use the XDbgToggleLineBreakpoint command
+
   :-) Most of the breakpoint types are not supported by xdebug?
 
 TODO:
