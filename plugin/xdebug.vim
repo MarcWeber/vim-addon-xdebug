@@ -16,6 +16,7 @@ command! -bar -nargs=1 XDbgSetMaxChildren call g:xdebug.ctx.send('feature_set -n
 command! -bar -nargs=0 XDbgRunTillCursor call g:xdebug.ctx.send('breakpoint_set -f '. xdebug#UriOfFilename(expand('%')).' -t line -n '.getpos('.')[1].' -r 1') | XDbgRun 
 
 sign define xdebug_current_line text=> linehl=Type
+sign define xdebug_breakpoint text=O   linehl=ErrorMsg
 
 if !exists('*XDebugMappings')
   fun! XDebugMappings()

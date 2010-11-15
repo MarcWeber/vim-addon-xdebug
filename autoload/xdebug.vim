@@ -5,6 +5,7 @@ let s:c.cmd_nr = get(s:c,'cmd_nr',0)
 let s:c.request_handlers = get(s:c, 'request_handlers', {})
 let s:c.max_depth = get(s:c, 'max_depth', 5)
 let s:c.max_children = get(s:c, 'max_depth', 5)
+let s:c.breakpoints = get(s:c, 'breakpoints', {})
 
 fun! xdebug#Start(...)
   echom "switching syn off because Vim crashes when keeping it on ??"
@@ -227,8 +228,7 @@ let s:auto_watch_end = '== auto watch end =='
 fun! xdebug#VarView()
   let buf_name = "XDEBUG_VAR_VIEW"
   let cmd = buf_utils#GotoBuf(buf_name, {'create':1} )
-  if cmd == 'e' && !exists('b:did_init')
-    let b:did_init = 1
+  if cmd == 'e'
     " new buffer, set commands etc
     let s:c.var_view_buf_nr = bufnr('%')
     au BufWinEnter <buffer> call xdebug#VarView()
@@ -246,25 +246,22 @@ fun! xdebug#VarView()
     exec 'sp '.fnameescape(buf_name)
   endif
 endf
-
+let s:auto_break_end = '== break points end =='
 fun! xdebug#BreakPointsBuffer()
   let buf_name = "XDEBUG_BREAK_POINTS_VIEW"
   let cmd = buf_utils#GotoBuf(buf_name, {'create':1} )
-  if cmd == 'e' && !exists('b:did_init')
-    let b:did_init = 1
+  if cmd == 'e'
     " new buffer, set commands etc
-    let s:c.var_view_buf_nr = bufnr('%')
-    au BufWinEnter <buffer> call xdebug#VarView()
-    command -buffer UpdateWatchView call xdebug#UpdateVarView()
-    vnoremap <buffer> <cr> y:let g:xdebug.request_handlers[g:xdebug.ctx.send('eval', getreg('"'))] = [function('xdebug#AppendToVarView'),[]]<cr>
-    call append(0,['watch $_GET', s:auto_break_end
-          \ , 'XDebug supports different types of breakpoints. The following types are supported
-          \ , '#line:file:line: [if condition]'
-          \ , '#call:function [if condition]'
-          \ , '#return:function [if condition]'
-          \ , '#exception:exception_name [if condition]'
-          \ , '#conditional:filename: condition'
-          \ , '#watch: expr'
+    let s:c.var_break_buf_nr = bufnr('%')
+    noremap <buffer> <cr> :call xdebug#UpdateBreakPoints()<cr>
+    call append(0,['# put the breakpoints here:', s:auto_break_end
+          \ , 'XDebug supports different types of breakpoints. The following types are supported:'
+          \ , 'line:file:line: [if condition]'
+          \ , 'call:function [if condition]'
+          \ , 'return:function [if condition]'
+          \ , 'exception:exception_name [if condition]'
+          \ , 'conditional:file: condition'
+          \ , 'watch: expr'
           \ ])
     set buftype=nofile
   endif
@@ -273,6 +270,109 @@ fun! xdebug#BreakPointsBuffer()
   if buf_nr == -1
     exec 'sp '.fnameescape(buf_name)
   endif
+endf
+
+" reads breakpoints from breakpointbuffer
+fun! xdebug#UpdateBreakPoints()
+  let signs = []
+  let dict_new = {}
+  call xdebug#BreakPointsBuffer()
+
+  let r_line        = '^line:\([^:]\+\):\(\d\+\)\%(\s\+if\s\?\(.*\)\)\?'
+  let r_call        =   '^call:\(\S\+\)\%(\s\+if\s\?\(.*\)\)\?'
+  let r_return      = '^return:\(\S\+\)\%(\s\+if\s\?\(.*\)\)\?'
+  let r_exception   = '^exception:\(\S\+\)\%(\s\?if\s\+\(.*\)\)\?'
+  let r_conditional = '^conditional:\([^:]*\):\s\+\%(if\s\?\(.*\)\)\?'
+  let r_watch       = '^watch:\s*\(.*\)'
+
+  for l in getline('0',line('$'))
+    if l =~ s:auto_break_end | break | endif
+    if l =~ '^#' | continue | endif
+    silent! unlet args
+    let condition = ""
+
+    let m = matchlist(l, r_line)
+    if !empty(m)
+      let point = {'type': 'line', 'file': m[1], 'line': m[2] }
+      let condition = m[3]
+      call add(signs, [bufnr(point.file), point.line, 'xdebug_breakpoint'])
+      let args = ['-t '. point.type. ' -f '.xdebug#UriOfFilename(point.file).' -n '. point.line]
+    endif
+    
+    let m = matchlist(l, r_call)
+    if !empty(m)
+      let point = {'type': 'call','function': m[1]}
+      let args = ['-t '. point.type. ' -m '.point.function
+      let condition = m[2]
+    endif
+
+    let m = matchlist(l, r_return)
+    if !empty(m)
+      let point = {'type': 'return','function': m[1]}
+      let args = ['-t '. point.type. ' -m '.point.function
+      let condition = m[2]
+    endif
+
+    let m = matchlist(l, r_exception)
+    if !empty(m)
+      let point = {'type': 'exception','exception': m[1]}
+      let args = ['-t '. point.type. ' -x '.point.exception
+      let condition = m[2]
+    endif
+
+    let m = matchlist(l, r_conditional)
+    if !empty(m)
+      let point = {'type': 'conditional','file': m[1]}
+      let args = ['-t '. point.type. ' -f '. xdebug#UriOfFilename(point.filename)
+      let condition = m[2]
+    endif
+
+    let m = matchlist(l, r_watch)
+    if !empty(m)
+      let point = {'type': 'watch'}
+      let condition = m[1]
+      let args = ['-t '. point.type]
+    endif
+
+    if !exists('args')
+      echoe 'error parsing line '.l
+      continue
+    endif
+
+    if condition != ''
+      let point.condition = condition
+      call add(args, condition)
+    endif
+
+    let dict_new[string(point)] = args
+  endfor
+
+  call vim_addon_signs#Push("xdebug_breakpoint", signs )
+
+  " remove breakpoints which are no longer present in list:
+  let dict_old = s:c.breakpoints
+  for [k,v] in items(dict_old)
+    if !has_key(dict_new, k)
+      call s:c.ctx.send('breakpoint_remove -d '.v)
+      unlet dict_old[k]
+    endif
+    unlet k v
+  endfor
+
+  " add new breakpoints:
+  for [k,v] in items(dict_new)
+    if !has_key(dict_old, k)
+      let v[0] = 'breakpoint_set '.v[0]
+      let s:c.request_handlers[call(g:xdebug.ctx.send, v, s:c.ctx)] = [function('xdebug#BreakPointSet'),[k]]
+    endif
+  endfor
+
+endf
+
+fun! xdebug#BreakPointSet(key, xmlO, ...)
+  " if ok
+  let s:c.breakpoints[a:key] = a:xmlO.attr.id
+  " endif
 endf
 
 fun! xdebug#AppendToVarView(xmlO)
