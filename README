@@ -53,6 +53,11 @@ HOWTO:
 
   :-) Most of the breakpoint types are not supported by xdebug?
 
+7) xdebug port (defaults to 9000):
+  Either call fun! xdebug#Start({'port':9001})
+  or set it in your .vimrc:
+  let g:xdebug.opts = { 'port' : 9001 }
+
 TODO:
 ====
 - Help me make this all more mature / complete

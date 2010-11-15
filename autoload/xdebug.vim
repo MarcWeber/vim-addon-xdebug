@@ -6,12 +6,13 @@ let s:c.request_handlers = get(s:c, 'request_handlers', {})
 let s:c.max_depth = get(s:c, 'max_depth', 5)
 let s:c.max_children = get(s:c, 'max_depth', 5)
 let s:c.breakpoints = get(s:c, 'breakpoints', {})
+let s:c.port = get(s:c, 'opts', {'port': 9000})
 
 fun! xdebug#Start(...)
   echom "switching syn off because Vim crashes when keeping it on ??"
   syn off
   let override = a:0 > 0 ? a:1 : {}
-  let opts = {'port': 9000}
+  let opts = s:c.opts
 
   let s:c.log = []
 
