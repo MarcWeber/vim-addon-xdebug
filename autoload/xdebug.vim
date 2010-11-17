@@ -124,6 +124,10 @@ fun! xdebug#HandleXdebugReply(xml) abort
     " unlet s:c.request_handlers[transaction_id]
   elseif xmlO.name == 'init'
 
+    for [v,k] in s:c.breakpoint_list_func_args
+      let s:c.request_handlers[call(g:xdebug.ctx.send, v, s:c.ctx)] = [function('xdebug#BreakPointSet'),[k]]
+    endfor
+
     " call s:c.ctx.send('show_hidden -v 1')
     call s:c.ctx.send('feature_set -n max_depth -v '. s:c.max_depth)
     call s:c.ctx.send('feature_set -n max_children -v '. s:c.max_children)
@@ -366,10 +370,12 @@ fun! xdebug#UpdateBreakPoints()
     unlet k v
   endfor
 
+  let s:c.breakpoint_list_func_args = []
   " add new breakpoints:
   for [k,v] in items(dict_new)
     if !has_key(dict_old, k)
       let v[0] = 'breakpoint_set '.v[0]
+      call add(s:c.breakpoint_list_func_args, [v,k])
       let s:c.request_handlers[call(g:xdebug.ctx.send, v, s:c.ctx)] = [function('xdebug#BreakPointSet'),[k]]
     endif
   endfor
