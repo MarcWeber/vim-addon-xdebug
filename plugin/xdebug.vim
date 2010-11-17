@@ -3,7 +3,7 @@ command! -bar -nargs=0 XDbgStart let g:xdebug.debugging = 1 |call XDebugMappings
 command! -bar -nargs=0 XDbgKill  let g:xdebug.debugging = 0 | call g:xdebug.ctx.kill()
 command! -bar -nargs=0 XDbgStop  call g:xdebug.ctx.send('stop')
 command! -bar -nargs=0 XDbgStackToQF call xdebug#StackToQF()
-command! -bar -nargs=0 XDbgPrintKey :echo '?XDEBUG_SESSION_START=ECLIPSE_DBGP&KEY=12894211795611'
+command! -bar -nargs=0 XDbgCopyKey call setreg('*', '?XDEBUG_SESSION_START=ECLIPSE_DBGP&KEY=12894211795611')
 command! -bar -nargs=0 XDbgVarView call xdebug#VarView()
 command! -bar -nargs=0 XDbgBreakPoints call xdebug#BreakPointsBuffer()
 
