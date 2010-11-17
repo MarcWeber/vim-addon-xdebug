@@ -7,6 +7,7 @@ let s:c.max_depth = get(s:c, 'max_depth', 5)
 let s:c.max_children = get(s:c, 'max_depth', 5)
 let s:c.breakpoints = get(s:c, 'breakpoints', {})
 let s:c.opts = get(s:c, 'opts', {'port': 9000})
+let s:c.stop_first_line = get(s:c, 'stop_first_line', 0)
 
 fun! xdebug#Start(...)
   echom "switching syn off because Vim crashes when keeping it on ??"
@@ -122,12 +123,17 @@ fun! xdebug#HandleXdebugReply(xml) abort
     call call(function('call'), args)
     " unlet s:c.request_handlers[transaction_id]
   elseif xmlO.name == 'init'
-    " step to first line so that user sees that something happened
-    sp | call s:c.ctx.send('step_into')
 
     " call s:c.ctx.send('show_hidden -v 1')
     call s:c.ctx.send('feature_set -n max_depth -v '. s:c.max_depth)
     call s:c.ctx.send('feature_set -n max_children -v '. s:c.max_children)
+
+    if s:c.stop_first_line
+      " step to first line so that user sees that something happened
+      sp | call s:c.ctx.send('step_into')
+    else
+      call s:c.ctx.send('run')
+    endif
 
   elseif xmlO.find('xdebug:message') != {}
     call s:SetCurrentLine(xmlO.find('xdebug:message'))
@@ -397,7 +403,8 @@ fun! xdebug#UpdateVarView()
     if watch_expr != ''
       " should be using get_var or such which accepts stack level (not supported yet)
       " let watch_expr = " try { $result_XYZ = ".watch_expr."; } catch (Exception $e) { $result_XYZ = $e->getMessage(); } $result_XYZ"
-      let s:c.request_handlers[g:xdebug.ctx.send('eval', watch_expr)] = [function('xdebug#HandleWatchExprResult'),[watch_expr]]
+      let watch_expr_e = '(isset('.watch_expr.')) ? '.watch_expr. ': "uninitialized"'
+      let s:c.request_handlers[g:xdebug.ctx.send('eval', watch_expr_e)] = [function('xdebug#HandleWatchExprResult'),[watch_expr]]
     endif
   endfor
   let curr_buf = bufnr('%')
