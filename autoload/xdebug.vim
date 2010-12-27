@@ -3,13 +3,27 @@ if !exists('g:xdebug') | let g:xdebug = {} | endif | let s:c = g:xdebug
 
 let s:c.cmd_nr = get(s:c,'cmd_nr',0)
 let s:c.request_handlers = get(s:c, 'request_handlers', {})
-let s:c.max_depth = get(s:c, 'max_depth', 5)
-let s:c.max_children = get(s:c, 'max_depth', 5)
+let s:c.max_depth = get(s:c, 'max_depth', 100)
+let s:c.max_children = get(s:c, 'max_children', 100)
 let s:c.breakpoints = get(s:c, 'breakpoints', {})
 let s:c.opts = get(s:c, 'opts', {'port': 9000})
 let s:c.stop_first_line = get(s:c, 'stop_first_line', 0)
+let s:c.started = get(s:c, 'started', 0)
+
+fun! xdebug#Stop()
+  if !s:c.started
+    throw "xdebug not running. Can't stop!"
+  endif
+  let s:c.started = 0
+  call s:c.ctx.send('stop')
+  call s:c.ctx.kill()
+endf
 
 fun! xdebug#Start(...)
+  if s:c.started
+    throw "debugging was already started. Stop it using XDbgStop first, please!"
+  endif
+  let s:c.started = 1
   echom "switching syn off because Vim crashes when keeping it on ??"
   syn off
   let override = a:0 > 0 ? a:1 : {}
@@ -20,6 +34,11 @@ fun! xdebug#Start(...)
   call extend(opts , override, "force")
 
   let ctx = {'cmd' : 'socat TCP-L:'.opts['port'].' -', 'zero_aware': 1}
+
+  fun ctx.log(lines)
+    call async#DelayUntilNotDisturbing('xdebug', {'delay-when': ['buf-invisible:'. self.log_bufnr, 'in-cmdbuf'], 'fun' : function('async#ExecInBuffer'), 'args':  [self.log_bufnr, function('append'), ['$',a:lines]]})
+  endf
+
   let s:c.ctx = ctx
   if !has_key(opts,'log_bufnr')
     sp | enew
@@ -28,10 +47,6 @@ fun! xdebug#Start(...)
     let ctx.log_bufnr = opts.log_bufnr
   endif
   let ctx.pending = [""]
-
-  fun ctx.log(lines)
-    call async#DelayUntilNotDisturbing('xdebug', {'delay-when': ['buf-invisible:'. self.log_bufnr, 'in-cmdbuf'], 'fun' : function('async#ExecInBuffer'), 'args':  [self.log_bufnr, function('append'), ['$',a:lines]]})
-  endf
 
   let ctx.receive = function("xdebug#Receive")
 
@@ -44,8 +59,11 @@ fun! xdebug#Start(...)
     if s:c.debugging
       call self.log(["socat died with code : ". self.status." restarting"])
     endif
-    " reuse same bufnr
-    call xdebug#Start({'log_bufnr' : self.log_bufnr})
+    if s:c.started
+      " reuse same bufnr
+      let s:c.started = 0
+      call xdebug#Start({'log_bufnr' : self.log_bufnr})
+    endif
   endf
 
   fun ctx.started()
@@ -64,6 +82,7 @@ fun! xdebug#Start(...)
   endf
 
   call async#Exec(ctx)
+  call ctx.log(["socat started using cmd: ".ctx.cmd])
 
 endf
 
@@ -201,7 +220,7 @@ fun! xdebug#FormatResult(xmlO)
     endfor
     let num_should = a:xmlO.attr.numchildren * 1
     if num_should * 1 != childs_found
-      call add(lines, num_should - childs_found. ' childs omitted, increase max_depth ')
+      call add(lines, num_should - childs_found. ' childs omitted, increase max_depth or max_children ')
     endif
   elseif type == "null"
     let lines = [ "null" ]
@@ -274,7 +293,9 @@ fun! xdebug#BreakPointsBuffer()
           \ , 'conditional:file: condition'
           \ , 'watch: expr'
           \ ])
-    set buftype=nofile
+    " it may make sense storing breakpoints. So allow writing the breakpoints
+    " buffer
+    " set buftype=nofile
   endif
 
   let buf_nr = bufnr(buf_name)
