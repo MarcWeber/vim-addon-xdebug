@@ -209,7 +209,7 @@ fun! xdebug#StackToQF(...)
   let s:c.request_handlers[g:xdebug.ctx.send('stack_get'.depth)] = [function('xdebug#HandleStackReply'),[]]
 endf
 
-fun! xdebug#FormatResult(xmlO)
+fun! xdebug#FormatResult(xmlO) abort
   let type = a:xmlO.attr.type
   let n = get(a:xmlO.attr,'name','')
   if type == "array"
@@ -224,15 +224,17 @@ fun! xdebug#FormatResult(xmlO)
     endif
   elseif type == "null"
     let lines = [ "null" ]
-  else
-    let cdata = matchstr(a:xmlO.child[0],'[\r\n ]*\zs[^\r\n ]*\ze')
+  elseif type == "string" || type == "int"
+    let cdata = matchstr(get(a:xmlO.child, 0, ''),'[\r\n ]*\zs[^\r\n ]*\ze')
     if type == "int"
       let lines = [cdata]
     elseif type == "string"
-      let lines = [string(base64#b64decode(cdata))]
+      let lines = [ cdata == '' ? '' : string(base64#b64decode(cdata))]
     else
       let lines = ['TODO: FormatResult '. a:xmlO.toString()]
     endif
+  else
+    let lines = ['TODO: FormatResult '. a:xmlO.toString()]
   endif
   if n == ''
     return lines
