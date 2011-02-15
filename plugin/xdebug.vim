@@ -1,5 +1,5 @@
 if !exists('g:xdebug') | let g:xdebug = {} | endif | let s:c = g:xdebug
-command! -bar -nargs=0 XDbgStart let g:xdebug.debugging = 1 | call XDebugMappings() | call xdebug#Start()
+command! -bar -nargs=0 XDbgStart let g:xdebug.debugging = 1 | call XDebugMappings() | call xdebug#Start() | XDbgCopyKey | echo "url arg has been copied to clipboard"
 command! -bar -nargs=0 XDbgKill  let g:xdebug.debugging = 0 | call g:xdebug.ctx.kill()
 command! -bar -nargs=0 XDbgStop  call xdebug#Stop()
 command! -bar -nargs=0 XDbgStackToQF call xdebug#StackToQF()
