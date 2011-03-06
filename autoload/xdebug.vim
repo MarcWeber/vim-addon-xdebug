@@ -1,4 +1,4 @@
-" exec scriptmanager#DefineAndBind('s:c','g:xdebug','{}')
+" exec vam#DefineAndBind('s:c','g:xdebug','{}')
 if !exists('g:xdebug') | let g:xdebug = {} | endif | let s:c = g:xdebug
 
 let s:c.cmd_nr = get(s:c,'cmd_nr',0)
