@@ -121,7 +121,7 @@ function! s:dump(node, indent, reslist)
     for attr in keys(a:node.attr)
       call add(a:reslist, repeat(' ',a:indent + 2).'* '.attr.'='.a:node.attr[attr])
     endfor
-    for c in a:node.child
+    for c in a:node.childs
       call s:dump(c, a:indent + 4, a:reslist)
       unlet c
     endfor
@@ -214,8 +214,8 @@ fun! xdebug#FormatResult(xmlO) abort
   let n = get(a:xmlO.attr,'name','')
   if type == "array"
     let lines = []
-    let childs_found = len(a:xmlO.child)
-    for lx in map(copy(a:xmlO.child), 'xdebug#FormatResult(v:val)')
+    let childs_found = len(a:xmlO.childs)
+    for lx in map(copy(a:xmlO.childs), 'xdebug#FormatResult(v:val)')
       let lines = lines + lx
     endfor
     let num_should = a:xmlO.attr.numchildren * 1
@@ -225,7 +225,7 @@ fun! xdebug#FormatResult(xmlO) abort
   elseif type == "null"
     let lines = [ "null" ]
   elseif type == "string" || type == "int"
-    let cdata = matchstr(get(a:xmlO.child, 0, ''),'[\r\n ]*\zs[^\r\n ]*\ze')
+    let cdata = matchstr(get(a:xmlO.childs, 0, ''),'[\r\n ]*\zs[^\r\n ]*\ze')
     if type == "int"
       let lines = [cdata]
     elseif type == "string"
@@ -255,6 +255,13 @@ endf
 
 let s:auto_watch_end = '== auto watch end =='
 
+fun! xdebug#SendVisuallySelectedLines()
+  " must send lines individually
+  for x in split(getreg('"'),"\n")
+    let g:xdebug.request_handlers[g:xdebug.ctx.send('eval', x)] = [function('xdebug#AppendToVarView'),[]]
+  endfor
+endf
+
 " creates / shows the var view buffer.
 " Add "watch: $_GET" lines if you want to watch the contents of $_GET
 fun! xdebug#VarView()
@@ -265,7 +272,7 @@ fun! xdebug#VarView()
     let s:c.var_view_buf_nr = bufnr('%')
     au BufWinEnter <buffer> call xdebug#VarView()
     command -buffer UpdateWatchView call xdebug#UpdateVarView()
-    vnoremap <buffer> <cr> y:let g:xdebug.request_handlers[g:xdebug.ctx.send('eval', getreg('"'))] = [function('xdebug#AppendToVarView'),[]]<cr>
+    vnoremap <buffer> <cr> y:call xdebug#SendVisuallySelectedLines()<cr>
     call append(0,['watch $_GET', s:auto_watch_end
           \ , 'The watch results will be pasted below the watch: lines'
           \ , 'This text here will not be touched. You can eval PHP by typing, visually selecting and pressing <cr>'

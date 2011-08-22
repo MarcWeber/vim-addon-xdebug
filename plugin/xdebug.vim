@@ -25,7 +25,7 @@ if !exists('*XDebugMappings')
      noremap <F5> :call g:xdebug.ctx.send('step_into')<cr>
      noremap <F6> :call g:xdebug.ctx.send('step_over')<cr>
      noremap <F7> :call g:xdebug.ctx.send('step_out')<cr>
-     noremap <F8> :XDbgRun<cr>
+     noremap <F8> :call xdebug.ctx.send('run')<cr>
      noremap <F9> :XDbgToggleLineBreakpoint<cr>
      noremap \xv :XDbgVarView<cr>
   endf
