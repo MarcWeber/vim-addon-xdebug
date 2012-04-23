@@ -266,11 +266,11 @@ endf
 " Add "watch: $_GET" lines if you want to watch the contents of $_GET
 fun! xdebug#VarView()
   let buf_name = "XDEBUG_VAR_VIEW"
-  let cmd = buf_utils#GotoBuf(buf_name, {'create':1} )
+  let cmd = buf_utils#GotoBuf(buf_name, {'create_cmd': 'sp'} )
   if cmd == 'e'
     " new buffer, set commands etc
     let s:c.var_view_buf_nr = bufnr('%')
-    au BufWinEnter <buffer> call xdebug#VarView()
+    au BufWinEnter <buffer> call xdebug#UpdateVarView()
     command -buffer UpdateWatchView call xdebug#UpdateVarView()
     vnoremap <buffer> <cr> y:call xdebug#SendVisuallySelectedLines()<cr>
     call append(0,['watch $_GET', s:auto_watch_end
