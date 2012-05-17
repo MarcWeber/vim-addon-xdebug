@@ -53,6 +53,9 @@ HOWTO:
 
   :-) Most of the breakpoint types are not supported by xdebug?
 
+  " Add to your .vimrc to enable breakpoint on first line.
+  let g:xdebug = {'stop_on_first_line': 1}
+
 7) xdebug port (defaults to 9000):
   Either call fun! xdebug#Start({'port':9001})
   or set it in your .vimrc:
