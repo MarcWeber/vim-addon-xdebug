@@ -6,7 +6,7 @@
   "repository" : {"type": "git", "url": "git://github.com/MarcWeber/vim-addon-xdebug.git"},
   "dependencies" : {
     "vim-addon-async": {},
-    "webapi-vim": {},
+    "WebAPI": {},
     "vim-addon-signs": {},
     "vim-addon-mw-utils": {}
   },
