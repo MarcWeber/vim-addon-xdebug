@@ -72,7 +72,7 @@ fun! xdebug#Start(...)
 
   " send command using automatic unique id
   fun ctx.send(cmd, ...)
-    let append = a:0 > 0 ? ' -- '.base64#b64encode(a:1) : ""
+    let append = a:0 > 0 ? ' -- '.webapi#base64#b64encode(a:1) : ""
     let s:c.cmd_nr +=1
     let l = matchlist(a:cmd, '^\(\S\+\)\(.*\)')
     let cmd = l[1].' -i '. s:c.cmd_nr.l[2].append
@@ -129,7 +129,7 @@ function! s:dump(node, indent, reslist)
 endfunction
 
 fun! xdebug#HandleXdebugReply(xml) abort
-  let xmlO = xml#parse(a:xml)
+  let xmlO = webapi#xml#parse(a:xml)
   let debugView = []
   call s:dump(xmlO, 0, debugView)
   " let debugView = split(xmlO.toString(),"\n")
@@ -229,7 +229,7 @@ fun! xdebug#FormatResult(xmlO) abort
     if type == "int"
       let lines = [cdata]
     elseif type == "string"
-      let lines = [ cdata == '' ? '' : string(base64#b64decode(cdata))]
+      let lines = [ cdata == '' ? '' : string(webapi#base64#b64decode(cdata))]
     else
       let lines = ['TODO: FormatResult '. a:xmlO.toString()]
     endif
