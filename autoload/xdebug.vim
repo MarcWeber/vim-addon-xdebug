@@ -121,7 +121,7 @@ function! s:dump(node, indent, reslist)
     for attr in keys(a:node.attr)
       call add(a:reslist, repeat(' ',a:indent + 2).'* '.attr.'='.a:node.attr[attr])
     endfor
-    for c in a:node.childs
+    for c in a:node.child
       call s:dump(c, a:indent + 4, a:reslist)
       unlet c
     endfor
@@ -214,8 +214,8 @@ fun! xdebug#FormatResult(xmlO) abort
   let n = get(a:xmlO.attr,'name','')
   if type == "array"
     let lines = []
-    let childs_found = len(a:xmlO.childs)
-    for lx in map(copy(a:xmlO.childs), 'xdebug#FormatResult(v:val)')
+    let childs_found = len(a:xmlO.child)
+    for lx in map(copy(a:xmlO.child), 'xdebug#FormatResult(v:val)')
       let lines = lines + lx
     endfor
     let num_should = a:xmlO.attr.numchildren * 1
@@ -225,7 +225,7 @@ fun! xdebug#FormatResult(xmlO) abort
   elseif type == "null"
     let lines = [ "null" ]
   elseif type == "string" || type == "int"
-    let cdata = matchstr(get(a:xmlO.childs, 0, ''),'[\r\n ]*\zs[^\r\n ]*\ze')
+    let cdata = matchstr(get(a:xmlO.child, 0, ''),'[\r\n ]*\zs[^\r\n ]*\ze')
     if type == "int"
       let lines = [cdata]
     elseif type == "string"
