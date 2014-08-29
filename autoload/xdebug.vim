@@ -189,7 +189,7 @@ fun! xdebug#SetCurr(...)
 endf
 
 fun! s:FileNameFromUri(uri)
-  return substitute(a:uri,'^file:\/\/','', '')
+  return webapi#http#decodeURI(substitute(a:uri,'^file:\/\/','', ''))
 endf
 fun! xdebug#UriOfFilename(f)
   return 'file://'.fnamemodify(a:f,':p')
